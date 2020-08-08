@@ -111,7 +111,7 @@ def __get(session, relative_path='/', headers=None, cookies=None):
         return None
 
 
-def __get_page_text(response: requests.Response, force: bool=False) -> str:
+def __get_page_text(response: requests.Response, force: bool = False) -> str:
     if response is None:
         return None
     elif response.status_code == 200 or force:  # Some pages we want to get the page text even with non-200s
@@ -190,9 +190,8 @@ def retrieve_all(hostname, **kwargs):
             retrievals['resources'][resource] = __get_page_text(resp)
 
     # Parse out the HTTP meta-equiv headers
-    if (retrievals['responses']['auto'].headers.get('Content-Type', '').split(';')[0]
-            in HTML_TYPES
-            and retrievals['resources']['__path__']):
+    if (retrievals['responses']['auto'].headers.get('Content-Type', '').split(';')[0] in HTML_TYPES and
+            retrievals['resources']['__path__']):
         retrievals['responses']['auto'].http_equiv = parse_http_equiv_headers(retrievals['resources']['__path__'])
     else:
         retrievals['responses']['auto'].http_equiv = {}

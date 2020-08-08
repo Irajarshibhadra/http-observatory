@@ -401,26 +401,7 @@ class TestCookies(TestCase):
         self.assertFalse(result['sameSite'])
 
     def test_secure_with_httponly_sessions_and_samesite(self):
-        cookie = Cookie(name='SESSIONID_UNSET',
-                        comment=None,
-                        comment_url=None,
-                        discard=False,
-                        domain='mozilla.com',
-                        domain_initial_dot=False,
-                        domain_specified='mozilla.com',
-                        expires=None,
-                        path='/',
-                        path_specified='/',
-                        port=443,
-                        port_specified=443,
-                        rfc2109=False,
-                        rest={'HttpOnly': True, 'SameSite': True},
-                        secure=True,
-                        version=1,
-                        value='bar')
-        self.reqs['session'].cookies.set_cookie(cookie)
-
-        cookie = Cookie(name='SESSIONID_STRICT',
+        cookie = Cookie(name='SESSIONID_SAMESITE_STRICT',
                         comment=None,
                         comment_url=None,
                         discard=False,
@@ -439,7 +420,26 @@ class TestCookies(TestCase):
                         value='bar')
         self.reqs['session'].cookies.set_cookie(cookie)
 
-        cookie = Cookie(name='SESSIONID_LAX',
+        cookie = Cookie(name='SESSIONID_SAMESITE_LAX_TRUE',
+                        comment=None,
+                        comment_url=None,
+                        discard=False,
+                        domain='mozilla.com',
+                        domain_initial_dot=False,
+                        domain_specified='mozilla.com',
+                        expires=None,
+                        path='/',
+                        path_specified='/',
+                        port=443,
+                        port_specified=443,
+                        rfc2109=False,
+                        rest={'HttpOnly': True, 'SameSite': True},
+                        secure=True,
+                        version=1,
+                        value='bar')
+        self.reqs['session'].cookies.set_cookie(cookie)
+
+        cookie = Cookie(name='SESSIONID_SAMESITE_LAX',
                         comment=None,
                         comment_url=None,
                         discard=False,
@@ -458,39 +458,68 @@ class TestCookies(TestCase):
                         value='bar')
         self.reqs['session'].cookies.set_cookie(cookie)
 
+        cookie = Cookie(name='SESSIONID_SAMESITE_LAX_NONE',
+                        comment=None,
+                        comment_url=None,
+                        discard=False,
+                        domain='mozilla.com',
+                        domain_initial_dot=False,
+                        domain_specified='mozilla.com',
+                        expires=None,
+                        path='/',
+                        path_specified='/',
+                        port=443,
+                        port_specified=443,
+                        rfc2109=False,
+                        rest={'HttpOnly': True, 'SameSite': None},
+                        secure=True,
+                        version=1,
+                        value='bar')
+        self.reqs['session'].cookies.set_cookie(cookie)
+
         result = cookies(self.reqs)
 
         self.assertEquals('cookies-secure-with-httponly-sessions-and-samesite', result['result'])
         self.assertEquals({
-                           'SESSIONID_LAX': {
-                                             'domain': 'mozilla.com',
-                                             'expires': None,
-                                             'httponly': True,
-                                             'max-age': None,
-                                             'path': '/',
-                                             'port': 443,
-                                             'samesite': 'Lax',
-                                             'secure': True
-                           },
-                           'SESSIONID_STRICT': {
-                                                'domain': 'mozilla.com',
-                                                'expires': None,
-                                                'httponly': True,
-                                                'max-age': None,
-                                                'path': '/',
-                                                'port': 443,
-                                                'samesite': 'Strict',
-                                                'secure': True
-                           },
-                           'SESSIONID_UNSET': {'domain': 'mozilla.com',
-                                               'expires': None,
-                                               'httponly': True,
-                                               'max-age': None,
-                                               'path': '/',
-                                               'port': 443,
-                                               'samesite': 'Strict',
-                                               'secure': True}
-                           },
+                          'SESSIONID_SAMESITE_STRICT': {
+                              'domain': 'mozilla.com',
+                              'expires': None,
+                              'httponly': True,
+                              'max-age': None,
+                              'path': '/',
+                              'port': 443,
+                              'samesite': 'Strict',
+                              'secure': True
+                          },
+                          'SESSIONID_SAMESITE_LAX_TRUE': {
+                              'domain': 'mozilla.com',
+                              'expires': None,
+                              'httponly': True,
+                              'max-age': None,
+                              'path': '/',
+                              'port': 443,
+                              'samesite': 'Lax',
+                              'secure': True},
+                          'SESSIONID_SAMESITE_LAX': {
+                              'domain': 'mozilla.com',
+                              'expires': None,
+                              'httponly': True,
+                              'max-age': None,
+                              'path': '/',
+                              'port': 443,
+                              'samesite': 'Lax',
+                              'secure': True
+                          },
+                          'SESSIONID_SAMESITE_LAX_NONE': {
+                              'domain': 'mozilla.com',
+                              'expires': None,
+                              'httponly': True,
+                              'max-age': None,
+                              'path': '/',
+                              'port': 443,
+                              'samesite': 'Lax',
+                              'secure': True}
+                          },
                           result['data'])
         self.assertTrue(result['pass'])
         self.assertTrue(result['sameSite'])
@@ -1050,20 +1079,22 @@ class TestXContentTypeOptions(TestCase):
         self.assertFalse(result['pass'])
 
     def test_header_invalid(self):
-        self.reqs['responses']['auto'].headers['X-Content-Type-Options'] = 'whimsy'
+        for value in ('whimsy', 'nosniff, nosniff'):
+            self.reqs['responses']['auto'].headers['X-Content-Type-Options'] = value
 
-        result = x_content_type_options(self.reqs)
+            result = x_content_type_options(self.reqs)
 
-        self.assertEquals('x-content-type-options-header-invalid', result['result'])
-        self.assertFalse(result['pass'])
+            self.assertEquals('x-content-type-options-header-invalid', result['result'])
+            self.assertFalse(result['pass'])
 
     def test_nosniff(self):
-        self.reqs['responses']['auto'].headers['X-Content-Type-Options'] = 'nosniff'
+        for value in ('nosniff', 'nosniff '):
+            self.reqs['responses']['auto'].headers['X-Content-Type-Options'] = value
 
-        result = x_content_type_options(self.reqs)
+            result = x_content_type_options(self.reqs)
 
-        self.assertEquals('x-content-type-options-nosniff', result['result'])
-        self.assertTrue(result['pass'])
+            self.assertEquals('x-content-type-options-nosniff', result['result'])
+            self.assertTrue(result['pass'])
 
 
 class TestXFrameOptions(TestCase):
@@ -1104,12 +1135,13 @@ class TestXFrameOptions(TestCase):
         self.assertTrue(result['pass'])
 
     def test_deny(self):
-        self.reqs['responses']['auto'].headers['X-Frame-Options'] = 'DENY'
+        for value in ('DENY', 'DENY '):
+            self.reqs['responses']['auto'].headers['X-Frame-Options'] = value
 
-        result = x_frame_options(self.reqs)
+            result = x_frame_options(self.reqs)
 
-        self.assertEquals('x-frame-options-sameorigin-or-deny', result['result'])
-        self.assertTrue(result['pass'])
+            self.assertEquals('x-frame-options-sameorigin-or-deny', result['result'])
+            self.assertTrue(result['pass'])
 
     def test_enabled_via_csp(self):
         self.reqs['responses']['auto'].headers['X-Frame-Options'] = 'DENY'
@@ -1135,12 +1167,16 @@ class TestXXSSProtection(TestCase):
         self.assertFalse(result['pass'])
 
     def test_header_invalid(self):
-        self.reqs['responses']['auto'].headers['X-XSS-Protection'] = 'whimsy'
+        for value in ('whimsy',
+                      '2; mode=block',
+                      '1; mode=block; mode=block',
+                      '1; mode=block, 1; mode=block'):
+            self.reqs['responses']['auto'].headers['X-XSS-Protection'] = value
 
-        result = x_xss_protection(self.reqs)
+            result = x_xss_protection(self.reqs)
 
-        self.assertEquals('x-xss-protection-header-invalid', result['result'])
-        self.assertFalse(result['pass'])
+            self.assertEquals('x-xss-protection-header-invalid', result['result'])
+            self.assertFalse(result['pass'])
 
     def test_disabled(self):
         self.reqs['responses']['auto'].headers['X-XSS-Protection'] = '0'
@@ -1151,12 +1187,13 @@ class TestXXSSProtection(TestCase):
         self.assertFalse(result['pass'])
 
     def test_enabled_noblock(self):
-        self.reqs['responses']['auto'].headers['X-XSS-Protection'] = '1'
+        for value in ('1', '1 '):
+            self.reqs['responses']['auto'].headers['X-XSS-Protection'] = value
 
-        result = x_xss_protection(self.reqs)
+            result = x_xss_protection(self.reqs)
 
-        self.assertEquals('x-xss-protection-enabled', result['result'])
-        self.assertTrue(result['pass'])
+            self.assertEquals('x-xss-protection-enabled', result['result'])
+            self.assertTrue(result['pass'])
 
     def test_enabled_block(self):
         self.reqs['responses']['auto'].headers['X-XSS-Protection'] = '1; mode=block'

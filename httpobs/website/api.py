@@ -1,11 +1,14 @@
-from httpobs.conf import API_COOLDOWN
+from httpobs.conf import API_ALLOW_VERBOSE_STATS_FROM_PUBLIC, API_COOLDOWN
+from httpobs.scanner import STATES
 from httpobs.scanner.grader import get_score_description, GRADES
 from httpobs.scanner.utils import valid_hostname
 from httpobs.website import add_response_headers, sanitized_api_response
 
 from flask import Blueprint, jsonify, make_response, request
+from werkzeug.http import http_date
 
 import httpobs.database as database
+import json
 import os.path
 
 
@@ -117,8 +120,8 @@ def api_get_host_history():
         return jsonify({'error': 'No history found'})
 
     # Prune for when the score doesn't change; thanks to chuck for the elegant list comprehension
-    pruned_history = [v for k, v in enumerate(history) if history[k].get('score') is not history[k-1].get('score')
-                      or k is 0]
+    pruned_history = [v for k, v in enumerate(history) if history[k].get('score') is not history[k - 1].get('score') or
+                      k is 0]
 
     # Return the host history
     return jsonify(pruned_history)
@@ -148,13 +151,20 @@ def api_get_recent_scans():
 @api.route('/api/v1/getScannerStates', methods=['GET', 'OPTIONS'])
 @add_response_headers(cors=True)
 def api_get_scanner_states():
-    return jsonify(database.select_scan_scanner_statistics()['states'])
+    stats = database.select_scan_scanner_statistics(verbose=True)
+
+    return jsonify({state: stats['states'].get(state, 0) for state in STATES})
 
 
 @api.route('/api/v1/__stats__', methods=['GET', 'OPTIONS'])
 @add_response_headers(cors=True)
 def api_get_scanner_stats():
+    pretty = True if request.args.get('pretty', '').lower() == 'true' else False
     verbose = True if request.args.get('verbose', '').lower() == 'true' else False
+
+    # Disallow verbose stat requests from the public if this setting is set
+    if verbose and not API_ALLOW_VERBOSE_STATS_FROM_PUBLIC:
+        verbose = True if request.access_route[0] == '127.0.0.1' else False
 
     # Get the scanner statistics from the backend database, defaulting to the quick stats only
     stats = database.select_scan_scanner_statistics(verbose)
@@ -171,7 +181,11 @@ def api_get_scanner_stats():
     for k, v in grade_improvements_all.items():
         grade_improvements[min(5, max(0, int(k / 20)))] += v
 
-    return jsonify({
+    # Convert all the datetimes to HTTP strings
+    stats['most_recent_scan_datetime'] = http_date(stats['most_recent_scan_datetime'].utctimetuple())
+    stats['recent_scans'] = {http_date(i.utctimetuple()): v for i, v in stats['recent_scans']}
+
+    resp = make_response(json.dumps({
         'gradeDistribution': {
             'latest': grade_distribution,
             'all': grade_distribution_all_scans,
@@ -194,8 +208,12 @@ def api_get_scanner_stats():
                 'numPerHourLast24Hours': stats['recent_scans'],
             },
         },
-        'states': stats['states'],
-    })
+        'states': {state: stats['states'].get(state, 0) for state in STATES},
+    }, indent=4 if pretty else None, sort_keys=pretty, default=str))
+
+    resp.mimetype = 'application/json'
+
+    return resp
 
 
 @api.route('/api/v1/getScanResults', methods=['GET', 'OPTIONS'])
